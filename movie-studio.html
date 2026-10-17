@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Tiny Magic World — Movie Studio</title>
+<style>
+:root{--panel:rgba(18,25,43,.91);--line:#ffffff35;--gold:#ffe18a;--muted:#c8d4e5}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9ad9ed;font-family:system-ui,-apple-system,sans-serif;color:white;touch-action:manipulation}
+#stage{position:absolute;inset:0}canvas{display:block}
+.panel{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(9px);border-radius:14px;box-shadow:0 8px 28px #101a2b33}
+#top{position:absolute;top:env(safe-area-inset-top,8px);left:8px;right:8px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#brand{font-size:13px;font-weight:900;letter-spacing:.3px}#sub{font-size:10px;color:var(--muted)}
+button,select{border:1px solid #ffffff40;background:#ffffff18;color:white;border-radius:10px;padding:9px 10px;font-weight:750;font-size:11px}
+button:active{transform:scale(.98);background:#ffffff32}
+#tools{position:absolute;top:calc(env(safe-area-inset-top,8px) + 62px);right:8px;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:56%}
+#tools button{padding:7px 8px}
+#editor{position:absolute;left:8px;top:calc(env(safe-area-inset-top,8px) + 62px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(340px,52vw);overflow:auto;padding:10px;display:flex;flex-direction:column;gap:9px}
+#editor h3{font-size:13px;margin:0;color:var(--gold)}#editor p{font-size:10px;color:var(--muted);line-height:1.35;margin:0}
+textarea{width:100%;min-height:150px;resize:vertical;background:#0b1224;color:#fff;border:1px solid #ffffff35;border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,monospace}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row button{flex:1}
+.primary{background:#7854c7;border-color:#a18ae7}
+#sceneList{display:flex;flex-direction:column;gap:5px}
+.sceneItem{font-size:10px;line-height:1.35;padding:8px;border:1px solid #ffffff26;border-radius:9px;background:#ffffff0b;color:#e9f1ff}
+.sceneItem.active{border-color:var(--gold);background:#ffe18a1a}
+.sceneItem b{color:var(--gold)}
+#status{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);padding:8px 12px;font-size:10px;max-width:80%;text-align:center;white-space:normal}
+#help{position:absolute;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 62px);padding:9px;max-width:42%;font-size:10px;line-height:1.4}
+#help b{color:var(--gold)}
+#progress{height:5px;border-radius:9px;background:#ffffff25;overflow:hidden;margin-top:5px}#bar{height:100%;width:0;background:var(--gold)}
+#closeEditor{display:none}
+@media(max-width:600px){
+ #editor{width:calc(100% - 16px);height:47vh;bottom:8px;top:auto;z-index:4}
+ #editor.collapsed{height:42px;overflow:hidden}
+ #tools{top:calc(env(safe-area-inset-top,8px) + 60px);max-width:55%}
+ #help{top:calc(env(safe-area-inset-top,8px) + 105px);bottom:auto;max-width:44%}
+ #status{bottom:calc(env(safe-area-inset-bottom,0px) + 48vh);z-index:5}
+ textarea{min-height:92px}
+ #closeEditor{display:inline-block}
+}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="top" class="panel">
+ <div><div id="brand">✨ TINY MAGIC WORLD · MOVIE STUDIO</div><div id="sub">Nhập truyện → chia cảnh → phát hoạt ảnh</div></div>
+ <button id="toggleEditor">✍️ Kịch bản</button>
+</div>
+<div id="tools">
+ <button id="camBtn">🎥 Camera: Đạo diễn</button>
+ <button id="resetBtn">⌂ Toàn cảnh</button>
+</div>
+<div id="editor" class="panel">
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>1. KỊCH BẢN CỦA BẠN</h3><button id="closeEditor">Thu gọn</button></div>
+ <p>Mỗi đoạn hoặc mỗi dòng có thể thành một cảnh. Bản thử nghiệm nhận diện từ khóa tiếng Việt để chọn bối cảnh và chuyển động.</p>
+ <textarea id="script">Một buổi tối, phù thủy bước ra khỏi lâu đài.
+Phù thủy đi đến tiên cảnh và phát hiện một cánh cổng bí mật.
+Phù thủy giơ tay tung phép thuật, cánh cổng phát sáng.
+Một người bạn chạy đến thị trấn để gọi mọi người.
+Cả nhóm đứng ở quảng trường nhìn cánh cổng mở ra.</textarea>
+ <div class="row"><button class="primary" id="buildBtn">✨ Chia cảnh tự động</button><button id="sampleBtn">↻ Ví dụ</button></div>
+ <div style="display:flex;justify-content:space-between;align-items:center"><h3>2. DANH SÁCH CẢNH</h3><span id="sceneCount" style="font-size:10px;color:var(--muted)">0 cảnh</span></div>
+ <div id="sceneList"></div>
+ <div class="row"><button class="primary" id="playBtn">▶ Phát phim</button><button id="nextBtn">Cảnh tiếp theo ↦</button></div>
+ <div class="row"><button id="recordTipBtn">⏺ Hướng dẫn ghi hình</button><button id="stopBtn">■ Dừng</button></div>
+ <div id="progress"><div id="bar"></div></div>
+ <p><b>Giới hạn prototype:</b> chia cảnh bằng từ khóa, hoạt ảnh là mô phỏng. Chưa tự hiểu ngữ nghĩa như AI và chưa xuất MP4 trực tiếp.</p>
+</div>
+<div id="help" class="panel"><b>Điều khiển xem thử</b><br>Chạm nút Camera để đổi góc nhìn.<br>Chọn một cảnh rồi bấm Phát phim.<br>Ghi video bằng tính năng Ghi màn hình iPhone.</div>
+<div id="status" class="panel">Đang dựng thế giới 3D…</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const stage=document.getElementById('stage');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bd9ed); scene.fog=new THREE.Fog(0x9bd9ed,70,150);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,300);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;stage.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xeaf7ff,0x68834d,2.1));
+const sun=new THREE.DirectionalLight(0xffedc5,2.2);sun.position.set(-25,40,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const material=(c,r=.85,e=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,emissive:e,emissiveIntensity:e?.45:0});
+const M={grass:material(0x7bc777),grass2:material(0x91d987),road:material(0xdac7a1),wood:material(0x80513b),wood2:material(0xb77b4e),roof:material(0xc94f55),roof2:material(0x5b65a8),stone:material(0x8d9aab),cream:material(0xffe6ad),window:material(0x8be1ee,.35,0x226b80),leaf:material(0x348b58),leaf2:material(0x6dbd62),pink:material(0xf58ec8),purple:material(0x8a62c8),gold:material(0xffd35a,.4,0xffad19),water:material(0x48c7e7,.3),white:material(0xffffff),dark:material(0x34394d),blue:material(0x4c8ce0),red:material(0xe85b59),green:material(0x53b979)};
+function box(parent,x,y,z,w,h,d,m){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function cone(parent,x,y,z,r,h,m,n=4){const o=new THREE.Mesh(new THREE.ConeGeometry(r,h,n),m);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
+function grp(parent=scene,x=0,y=0,z=0){const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);return g}
+function label(text,x,z,color='#fff'){const c=document.createElement('canvas');c.width=512;c.height=90;const ctx=c.getContext('2d');ctx.fillStyle='rgba(25,35,53,.75)';ctx.beginPath();ctx.roundRect(5,5,502,80,20);ctx.fill();ctx.font='bold 34px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,45);const tex=new THREE.CanvasTexture(c);const p=new THREE.Mesh(new THREE.PlaneGeometry(8,1.4),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,side:THREE.DoubleSide}));p.position.set(x,5,z);p.rotation.x=-.22;scene.add(p)}
+box(scene,0,-.6,0,100,1,100,M.grass);
+function road(x,z,w,d){box(scene,x,-.02,z,w,.12,d,M.road)}
+road(0,0,8,94);road(0,0,94,8);road(-24,0,8,58);road(24,0,8,58);road(0,-24,54,7);road(0,24,54,7);
+function tree(x,z,s=1){const g=grp(scene,x,0,z);box(g,0,1.1*s,0,.45*s,2.2*s,.45*s,M.wood);box(g,0,2.5*s,0,2.2*s,1.8*s,2.2*s,M.leaf);box(g,0,3.25*s,0,1.55*s,1.5*s,1.55*s,M.leaf2)}
+for(let i=0;i<62;i++){let x=(Math.random()-.5)*94,z=(Math.random()-.5)*94;if(Math.abs(x)<7||Math.abs(z)<7||Math.abs(x-24)<6||Math.abs(x+24)<6||(x<-22&&z<-20))continue;tree(x,z,.7+Math.random()*.65)}
+function house(x,z,n,roof){const g=grp(scene,x,0,z);g.userData={name:'Nhà '+n,x,z,kind:'home'};box(g,0,1,0,3.4,2,3,M.cream);box(g,0,.8,1.55,.8,1.6,.1,M.wood);box(g,-.9,1.4,1.56,.65,.65,.1,M.window);box(g,.9,1.4,1.56,.65,.65,.1,M.window);cone(g,0,2.8,0,2.5,1.5,roof,4);return g}
+const buildings=[];
+const homeSpots=[[-35,16],[-29,16],[-35,22],[-29,22],[-35,28],[-29,28],[-35,34],[-29,34],[-35,40],[-29,40]];
+homeSpots.forEach((p,i)=>{buildings.push(house(p[0],p[1],i+1,i%2?M.roof2:M.roof));label('NHÀ '+(i+1),p[0],p[1]+2,'#fff2c9')});
+function shop(x,z,name,roof,front){const g=grp(scene,x,0,z);g.userData={name,x,z,kind:'shop'};box(g,0,1.5,0,5.5,3,4.5,M.cream);box(g,1,1,2.3,1.8,1.8,.12,front);box(g,-1.2,1.7,2.32,1.1,1,.12,M.window);box(g,0,3.25,0,6,.35,5,roof);buildings.push(g);label(name,x,z+3.6,'#fff2c9');return g}
+shop(12,-13,'QUÁN ĂN',M.roof,M.red);shop(25,-13,'TIỆN LỢI',M.green,M.blue);shop(12,13,'ĐỒN CẢNH SÁT',M.blue,M.blue);shop(25,13,'CỬA HÀNG HOA',M.pink,M.pink);label('THỊ TRẤN',19,2,'#fff2c9');
+// witch castle
+const castle=grp(scene,0,0,-36);box(castle,0,2,0,12,4,10,M.stone);box(castle,0,1.3,5.1,2,2.6,.2,M.wood);for(const x of [-5,5])for(const z of [-4,4]){box(castle,x,4.5,z,2.2,5,2.2,M.purple);cone(castle,x,8,z,1.7,2.8,M.roof2,5);const orb=new THREE.Mesh(new THREE.SphereGeometry(.4,12,12),M.gold);orb.position.set(x,9.5,z);castle.add(orb)}box(castle,0,5,-.2,4,6,4,M.purple);cone(castle,0,9,-.2,3.1,3.5,M.roof2,5);label('LÂU ĐÀI PHÙ THỦY',0,-26,'#fff0a6');
+// fairy grove
+box(scene,-31,-.02,-28,20,.15,14,M.water);const crystals=[];for(let i=0;i<13;i++){const c=new THREE.Mesh(new THREE.OctahedronGeometry(.65+Math.random()*.55),i%2?M.pink:M.purple);c.position.set(-38+Math.random()*14,.9+Math.random()*1.3,-33+Math.random()*10);scene.add(c);crystals.push(c)}label('TIÊN CẢNH',-31,-18,'#ffe4ff');
+// town props
+function lamp(x,z){const g=grp(scene,x,0,z);box(g,0,1,0,.16,2,.16,M.dark);box(g,0,2.1,0,.6,.25,.6,M.gold)}
+for(const p of [[-8,-7],[8,-7],[-8,7],[8,7],[9,-18],[28,-18],[9,18],[28,18]])lamp(p[0],p[1]);
+// plaza
+const fountain=grp(scene,0,0,0);const base=new THREE.Mesh(new THREE.CylinderGeometry(3,3.4,.5,12),M.stone);base.position.y=.25;fountain.add(base);const pool=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,.2,12),M.water);pool.position.y=.55;fountain.add(pool);box(fountain,0,1.2,0,.45,1.4,.45,M.stone);const orb=new THREE.Mesh(new THREE.SphereGeometry(.5,16,16),M.gold);orb.position.y=2.1;fountain.add(orb);
+// character and limbs
+const player=grp(scene,0,0,10);const torso=box(player,0,1.15,0,.85,1.05,.5,M.blue);box(player,0,2,0,.75,.7,.65,material(0xffd1a8));box(player,0,2.1,.34,.42,.12,.05,M.dark);const legL=box(player,-.23,.4,0,.28,.8,.3,M.dark),legR=box(player,.23,.4,0,.28,.8,.3,M.dark);const armL=box(player,-.57,1.2,0,.25,.8,.3,M.blue),armR=box(player,.57,1.2,0,.25,.8,.3,M.blue);cone(player,0,2.65,0,.58,.9,M.purple,5);const brim=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.12,12),M.purple);brim.position.y=2.35;player.add(brim);
+const magic=grp(player,0,2.5,0);for(let i=0;i<10;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),i%2?M.pink:M.gold);p.position.set(Math.cos(i*2.4)*(.6+Math.random()*.7),Math.sin(i*2.1)*.6,Math.sin(i*1.8)*(.6+Math.random()*.7));magic.add(p)}magic.visible=false;
+const locations={castle:{x:0,z:-31},fairy:{x:-31,z:-28},homes:{x:-32,z:26},town:{x:19,z:0},plaza:{x:0,z:0}};
+let cameraMode=0;const cameraNames=['Đạo diễn','Toàn cảnh','Theo sau','Thứ nhất'];let activeScenes=[],sceneIndex=0,playing=false,playStart=0,sceneStart=0,sceneDuration=5,magicUntil=0;
+const status=document.getElementById('status'),list=document.getElementById('sceneList'),bar=document.getElementById('bar');
+function setStatus(t){status.textContent=t}
+function destinationFor(text){
+ const s=text.toLowerCase();
+ if(/tiên cảnh|tiên giới|rừng phép|pha lê|khu rừng/.test(s))return {...locations.fairy,key:'fairy',name:'Tiên cảnh'};
+ if(/lâu đài|phù thủy|lâu dai/.test(s))return {...locations.castle,key:'castle',name:'Lâu đài phù thủy'};
+ if(/thị trấn|quán ăn|tiện lợi|cảnh sát|cửa hàng hoa|hoa/.test(s))return {...locations.town,key:'town',name:'Thị trấn'};
+ if(/nhà dân|khu dân cư|ngôi nhà|nhà số|nhà ở/.test(s))return {...locations.homes,key:'homes',name:'Khu 10 nhà'};
+ return {...locations.plaza,key:'plaza',name:'Quảng trường'};
+}
+function actionFor(text){const s=text.toLowerCase();if(/phép|phát sáng|cổng|ánh sáng|ma thuật/.test(s))return 'magic';if(/bay|lơ lửng/.test(s))return 'fly';if(/chạy|vội/.test(s))return 'run';if(/nhảy/.test(s))return 'jump';if(/chiến đấu|đánh nhau|tấn công/.test(s))return 'battle';if(/đi|bước|tiến đến|chạy/.test(s))return 'walk';return 'idle'}
+function splitScript(text){return text.split(/\n+|(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean).slice(0,20)}
+function buildScenes(){
+ const chunks=splitScript(document.getElementById('script').value);
+ activeScenes=chunks.map((text,i)=>{const dest=destinationFor(text);return {id:i,text,dest,action:actionFor(text),duration:Math.min(10,Math.max(3,Math.ceil(text.length/24))),camera:/cận cảnh|gương mặt|nhìn thấy/.test(text.toLowerCase())?'close':/toàn cảnh|từ trên cao|bay qua/.test(text.toLowerCase())?'wide':'follow'}});
+ sceneIndex=0;renderList();if(activeScenes.length){selectScene(0);setStatus('Đã chia '+activeScenes.length+' cảnh. Chọn Phát phim để xem hoạt ảnh.')}
+}
+function renderList(){list.innerHTML='';document.getElementById('sceneCount').textContent=activeScenes.length+' cảnh';activeScenes.forEach((s,i)=>{const el=document.createElement('button');el.className='sceneItem'+(i===sceneIndex?' active':'');el.innerHTML='<b>Cảnh '+(i+1)+' · '+s.dest.name+'</b><br>'+s.text+'<br><span style="opacity:.75">Động tác: '+s.action+' · '+s.duration+' giây</span>';el.addEventListener('click',()=>{stopFilm();selectScene(i)});list.appendChild(el)})}
+function selectScene(i){if(!activeScenes.length)return;sceneIndex=(i+activeScenes.length)%activeScenes.length;const s=activeScenes[sceneIndex];player.position.set(s.dest.x,0,s.dest.z+7);player.rotation.y=Math.PI;magic.visible=s.action==='magic';cameraMode=s.camera==='wide'?1:s.camera==='close'?3:2;renderList();setStatus('Cảnh '+(sceneIndex+1)+'/'+activeScenes.length+' · '+s.dest.name); }
+function stopFilm(){playing=false;document.getElementById('playBtn').textContent='▶ Phát phim';}
+function startFilm(){if(!activeScenes.length)buildScenes();if(!activeScenes.length)return;playing=true;document.getElementById('playBtn').textContent='Ⅱ Tạm dừng';sceneIndex=0;sceneStart=performance.now();selectScene(0);playing=true;document.getElementById('playBtn').textContent='Ⅱ Tạm dừng'}
+function nextScene(){if(!activeScenes.length)return;selectScene(sceneIndex+1);sceneStart=performance.now()}
+document.getElementById('buildBtn').addEventListener('click',buildScenes);
+document.getElementById('sampleBtn').addEventListener('click',()=>{document.getElementById('script').value='Một buổi tối, phù thủy bước ra khỏi lâu đài.\\nPhù thủy đi đến tiên cảnh và phát hiện một cánh cổng bí mật.\\nPhù thủy giơ tay tung phép thuật, cánh cổng phát sáng.\\nMột người bạn chạy đến thị trấn để gọi mọi người.\\nCả nhóm đứng ở quảng trường nhìn cánh cổng mở ra.';buildScenes()});
+document.getElementById('playBtn').addEventListener('click',()=>{if(playing){stopFilm();setStatus('Đã tạm dừng phim.')}else startFilm()});
+document.getElementById('nextBtn').addEventListener('click',nextScene);
+document.getElementById('stopBtn').addEventListener('click',()=>{stopFilm();magic.visible=false;setStatus('Đã dừng phát cảnh.')});
+document.getElementById('camBtn').addEventListener('click',()=>{cameraMode=(cameraMode+1)%4;document.getElementById('camBtn').textContent='🎥 Camera: '+cameraNames[cameraMode];setStatus('Camera: '+cameraNames[cameraMode])});
+document.getElementById('resetBtn').addEventListener('click',()=>{cameraMode=1;player.position.set(0,0,10);camera.position.set(30,34,42);camera.lookAt(0,0,0);document.getElementById('camBtn').textContent='🎥 Camera: '+cameraNames[cameraMode];setStatus('Đang xem toàn cảnh thế giới.')});
+document.getElementById('recordTipBtn').addEventListener('click',()=>setStatus('Trên iPhone: mở Trung tâm điều khiển → Ghi màn hình → quay cảnh đang phát. Bản này chưa xuất MP4 trực tiếp.'));
+document.getElementById('toggleEditor').addEventListener('click',()=>document.getElementById('editor').classList.toggle('collapsed'));
+document.getElementById('closeEditor').addEventListener('click',()=>document.getElementById('editor').classList.toggle('collapsed'));
+let last=performance.now();
+function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.05);last=now;
+ if(playing&&activeScenes.length){const s=activeScenes[sceneIndex];const elapsed=(now-sceneStart)/1000;if(elapsed>=s.duration){if(sceneIndex<activeScenes.length-1){sceneIndex++;sceneStart=now;selectScene(sceneIndex)}else{stopFilm();setStatus('Hết phim thử nghiệm! Bạn có thể ghi màn hình hoặc chỉnh kịch bản.')}}else{bar.style.width=((sceneIndex+(elapsed/s.duration))/activeScenes.length*100)+'%';const p=s.dest;const t=elapsed/s.duration;const forward=s.action==='run'?1.6:s.action==='walk'?.8:0;player.position.x=p.x+Math.sin(t*Math.PI*2)*forward;player.position.z=p.z+7-t*1.8;if(s.action==='fly')player.position.y=Math.sin(t*Math.PI)*2.2;else if(s.action==='jump')player.position.y=Math.abs(Math.sin(t*Math.PI*3))*1.2;else player.position.y=0;const swing=Math.sin(now*.012)*.55;if(s.action==='walk'||s.action==='run'){legL.rotation.x=swing;legR.rotation.x=-swing;armL.rotation.x=-swing;armR.rotation.x=swing}else{legL.rotation.x=legR.rotation.x=armL.rotation.x=armR.rotation.x=0}magic.visible=s.action==='magic';magic.rotation.y+=dt*2;}}
+ let desired=new THREE.Vector3();
+ if(cameraMode===0)desired.set(player.position.x+15,player.position.y+12,player.position.z+17);
+ else if(cameraMode===1)desired.set(0,45,52);
+ else if(cameraMode===2)desired.set(player.position.x+9,player.position.y+8,player.position.z+10);
+ else desired.set(player.position.x,player.position.y+2.35,player.position.z);
+ if(cameraMode===3){camera.position.copy(desired);camera.lookAt(player.position.x+Math.sin(player.rotation.y)*8,player.position.y+2.1,player.position.z+Math.cos(player.rotation.y)*8)}else{camera.position.lerp(desired,Math.min(1,dt*1.8));camera.lookAt(cameraMode===1?0:player.position.x, cameraMode===1?0:player.position.y+1, cameraMode===1?0:player.position.z)}
+ renderer.render(scene,camera)}
+requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+buildScenes();
+</script>
+</body></html>
