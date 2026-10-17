@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Tiny Magic World — Làng phép thuật</title>
+<style>
+:root{--panel:rgba(18,24,42,.82);--line:rgba(255,255,255,.22);--gold:#ffd978}
+*{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9ad9ed;font-family:system-ui,-apple-system,sans-serif;touch-action:none}
+#game{position:absolute;inset:0}canvas{display:block;width:100%;height:100%}
+.panel{position:absolute;color:#fff;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(9px);border-radius:14px;box-shadow:0 8px 28px #13203330}
+#top{top:env(safe-area-inset-top,8px);left:10px;right:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+#brand{font-weight:800;font-size:14px;letter-spacing:.2px}#sub{font-size:10px;opacity:.78;margin-top:2px}
+button{border:1px solid #ffffff45;background:#ffffff18;color:#fff;border-radius:10px;padding:9px 11px;font-weight:700;font-size:12px}
+button:active{transform:scale(.97);background:#ffffff35}
+#mapcard{left:10px;top:90px;width:132px;padding:8px}
+#maptitle{font-size:11px;font-weight:800;margin-bottom:5px}
+#map{width:114px;height:114px;border-radius:8px;background:#8dcf8d;display:block}
+#maphelp{font-size:9px;opacity:.8;margin-top:5px;line-height:1.25}
+#info{left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);padding:10px 12px;max-width:48%;font-size:11px;line-height:1.35}
+#place{font-size:13px;font-weight:800;color:var(--gold);margin-bottom:3px}
+#controls{position:absolute;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:grid;grid-template-columns:52px 52px 52px;grid-template-rows:48px 48px 48px;gap:5px}
+.ctrl{font-size:18px;padding:0;background:#152039b8;border:1px solid #ffffff55;border-radius:14px;touch-action:none}
+#up{grid-column:2;grid-row:1}#left{grid-column:1;grid-row:2}#down{grid-column:2;grid-row:2}#right{grid-column:3;grid-row:2}
+#actions{position:absolute;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 174px);display:flex;gap:6px}
+#actions button{font-size:11px;padding:9px 10px}
+#hint{position:absolute;top:65px;left:50%;transform:translateX(-50%);background:#17243acc;color:white;padding:6px 10px;border-radius:20px;font-size:10px;white-space:nowrap}
+#legend{position:absolute;right:10px;top:90px;display:flex;flex-direction:column;gap:5px;max-width:125px}
+#legend button{text-align:left;padding:7px 8px;font-size:10px}
+#toast{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);padding:12px 16px;max-width:80%;text-align:center;font-weight:700;display:none}
+@media(max-width:390px){#mapcard{width:116px}#map{width:98px;height:98px}#legend{max-width:112px}#legend button{font-size:9px;padding:6px}#controls{grid-template-columns:46px 46px 46px;grid-template-rows:44px 44px 44px}.ctrl{font-size:16px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="top" class="panel">
+ <div><div id="brand">✨ TINY MAGIC WORLD</div><div id="sub">Bản thử nghiệm 3D • Làng phép thuật</div></div>
+ <div style="display:flex;gap:6px"><button id="cam">🎥 Camera</button><button id="home">⌂ Về làng</button></div>
+</div>
+<div id="hint">Chạm nút mũi tên để đi • Chọn địa điểm bên phải</div>
+<div id="mapcard" class="panel"><div id="maptitle">🗺️ BẢN ĐỒ</div><canvas id="map" width="228" height="228"></canvas><div id="maphelp">Chấm vàng = bạn<br>Chấm màu = địa điểm</div></div>
+<div id="legend">
+ <button data-go="castle">🏰 Lâu đài phù thủy</button>
+ <button data-go="fairy">🧚 Tiên cảnh</button>
+ <button data-go="homes">🏡 Khu 10 nhà</button>
+ <button data-go="town">🏪 Thị trấn</button>
+</div>
+<div id="info" class="panel"><div id="place">Quảng trường Làng</div><div id="desc">Chào mừng đến Tiny Magic World! Hãy khám phá các khu vực.</div></div>
+<div id="actions"><button id="spell">✨ Phép thuật</button><button id="dance">💫 Nhảy</button></div>
+<div id="controls">
+ <button class="ctrl" id="up">▲</button><button class="ctrl" id="left">◀</button><button class="ctrl" id="down">▼</button><button class="ctrl" id="right">▶</button>
+</div>
+<div id="toast" class="panel"></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const root=document.getElementById('game');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9ad9ed); scene.fog=new THREE.Fog(0x9ad9ed,55,120);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,250);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace; root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe8f7ff,0x66804c,2.0));
+const sun=new THREE.DirectionalLight(0xfff0cf,2.5); sun.position.set(-25,38,22); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); scene.add(sun);
+const mat=(color,roughness=.85,emissive=0)=>new THREE.MeshStandardMaterial({color,roughness,emissive,emissiveIntensity:emissive?0.45:0});
+const M={grass:mat(0x7cc77a),grass2:mat(0x91d987),road:mat(0xd8c5a1),roadEdge:mat(0xb59a76),wood:mat(0x80513b),wood2:mat(0xb77b4e),roof:mat(0xc94f55),roof2:mat(0x5b65a8),stone:mat(0x8d9aab),cream:mat(0xffe6ad),window:mat(0x8be1ee,.35,0x226b80),leaf:mat(0x348b58),leaf2:mat(0x6dbd62),pink:mat(0xf58ec8),purple:mat(0x8a62c8),gold:mat(0xffd35a,.4,0xffad19),water:mat(0x48c7e7,.3),white:mat(0xffffff),dark:mat(0x34394d),blue:mat(0x4c8ce0),red:mat(0xe85b59),green:mat(0x53b979)};
+function box(parent,x,y,z,w,h,d,material){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function cone(parent,x,y,z,r,h,material,n=4){let o=new THREE.Mesh(new THREE.ConeGeometry(r,h,n),material);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
+function group(parent=scene,x=0,y=0,z=0){let g=new THREE.Group();g.position.set(x,y,z);parent.add(g);return g}
+function label(text,x,z,color='#fff'){let c=document.createElement('canvas');c.width=512;c.height=96;let ctx=c.getContext('2d');ctx.fillStyle='rgba(25,35,53,.72)';ctx.beginPath();ctx.roundRect(5,8,502,80,22);ctx.fill();ctx.font='bold 36px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,49);let t=new THREE.CanvasTexture(c);let m=new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,side:THREE.DoubleSide});let p=new THREE.Mesh(new THREE.PlaneGeometry(8,1.5),m);p.position.set(x,5,z);p.rotation.x=-.25;scene.add(p);return p}
+box(scene,0,-.6,0,100,1,100,M.grass);
+// meadow patches
+for(let i=0;i<28;i++){let x=(Math.random()-.5)*90,z=(Math.random()-.5)*90;box(scene,x,-.07,z,2+Math.random()*5,.05,2+Math.random()*5,M.grass2)}
+// roads
+function road(x,z,w,d){box(scene,x,-.02,z,w,.12,d,M.road);box(scene,x,-.08,z,w+.25,.05,d+.25,M.roadEdge)}
+road(0,0,8,94);road(0,0,94,8);road(-24,0,8,58);road(24,0,8,58);road(0,-24,54,7);road(0,24,54,7);
+// bridges/water in fairy district
+let water=box(scene,-31,-.02,-28,20,.18,14,M.water);water.material= M.water;
+for(let i=0;i<7;i++)box(scene,-31+i*1.2,.12,-28,0.8,.18,13,mat(i%2?0x65d8ed:0x36b9df));
+// trees
+function tree(x,z,s=1){let g=group(scene,x,0,z);box(g,0,1.1*s,0,.45*s,2.2*s,.45*s,M.wood);box(g,0,2.5*s,0,2.2*s,1.8*s,2.2*s,M.leaf);box(g,0,3.25*s,0,1.55*s,1.5*s,1.55*s,M.leaf2);return g}
+for(let i=0;i<80;i++){let x=(Math.random()-.5)*94,z=(Math.random()-.5)*94;if(Math.abs(x)<7||Math.abs(z)<7||Math.abs(x-24)<6||Math.abs(x+24)<6|| (x<-22&&z<-20))continue;tree(x,z,.7+Math.random()*.65)}
+// fences
+function fenceLine(x,z,count,dx,dz){for(let i=0;i<count;i++){box(scene,x+i*dx,.45,z,.18,.9,.18,M.wood2)}}
+fenceLine(-44,12,12,1,0);fenceLine(-44,24,12,1,0);fenceLine(-44,12,1,0,12);fenceLine(-33,12,1,0,12);
+// house
+function house(x,z,n,roofMat=M.roof,scale=1){let g=group(scene,x,0,z);box(g,0,1.25,0,4*scale,2.5*scale,3.6*scale,M.cream);box(g,0,.85,1.84*scale,1*scale,1.7*scale,.12,M.wood);box(g,-1.1*scale,1.65*scale,1.86*scale,.72*scale,.72*scale,.13,M.window);box(g,1.1*scale,1.65*scale,1.86*scale,.72*scale,.72*scale,.13,M.window);let r=cone(g,0,3.35*scale,0,3.1*scale,1.8*scale,roofMat,4);r.rotation.y=Math.PI/4;box(g,-2.15*scale,.18,0,.25,.36,4*scale,M.wood2);box(g,2.15*scale,.18,0,.25,.36,4*scale,M.wood2);return g}
+// ten homes in residential district
+const homePositions=[[-35,16],[-29,16],[-35,22],[-29,22],[-35,28],[-29,28],[-35,34],[-29,34],[-35,40],[-29,40]];
+homePositions.forEach((p,i)=>{house(p[0],p[1],i,i%2?M.roof2:M.roof,.82);label('Nhà '+(i+1),p[0],p[1]+2,'#fff2c9')});
+label('KHU 10 NGÔI NHÀ',-32,10,'#fff2c9');
+// town buildings
+function shop(x,z,title,roofMat,frontColor){let g=group(scene,x,0,z);box(g,0,1.65,0,6,3.3,5,M.cream);box(g,1.3,1.05,2.56,2.1,1.9,.15,frontColor);box(g,-1.4,1.8,2.57,1.35,1.1,.14,M.window);box(g,0,3.55,0,6.6,.35,5.5,roofMat);box(g,0,4.05,-.4,6.3,.65,4.9,roofMat);label(title,x,z+4,title==='ĐỒN CẢNH SÁT'?'#cfe8ff':'#fff2c9');return g}
+shop(12,-13,'QUÁN ĂN',M.roof,M.red);
+shop(25,-13,'TIỆN LỢI',M.green,M.blue);
+shop(12,13,'CẢNH SÁT',M.blue,M.blue);
+shop(25,13,'CỬA HÀNG HOA',M.pink,M.pink);
+label('THỊ TRẤN',19,2,'#fff2c9');
+// restaurant awning stripes
+for(let i=0;i<6;i++)box(scene,9.7+i*.9,2.35,-10.25,.65,.35,.35,i%2?M.white:M.red);
+// flower pots
+for(let i=0;i<6;i++){let x=22+i%3*1.8,z=17+Math.floor(i/3)*1.2;box(scene,x,.35,z,.5,.7,.5,M.wood2);let f=box(scene,x,.95,z,.55,.55,.55,i%2?M.pink:M.purple);f.rotation.y=.4}
+// magic castle in north
+const castle=group(scene,0,0,-36);
+box(castle,0,2,0,12,4,10,M.stone);box(castle,0,1.3,5.1,2,2.6,.2,M.wood);
+box(castle,0,3.5,5.25,2.2,.4,.2,M.gold);
+for(let x of [-5,5])for(let z of [-4,4]){box(castle,x,4.6,z,2.2,5,2.2,M.purple);cone(castle,x,8,z,1.7,2.8,M.roof2,5);let orb=new THREE.Mesh(new THREE.SphereGeometry(.42,12,12),M.gold);orb.position.set(x,9.5,z);castle.add(orb)}
+box(castle,0,5,-.2,4,6,4,M.purple);cone(castle,0,9,-.2,3.1,3.5,M.roof2,5);
+label('LÂU ĐÀI PHÙ THỦY',0,-26,'#fff0a6');
+// magic particles / crystals in fairyland
+const fairy=group(scene,-31,0,-28);
+for(let i=0;i<13;i++){let x=(Math.random()-.5)*15,z=(Math.random()-.5)*9;let crystal=new THREE.Mesh(new THREE.OctahedronGeometry(.7+Math.random()*.6),i%2?M.pink:M.purple);crystal.position.set(x,.8+Math.random()*1.4,z);crystal.rotation.y=Math.random()*3;fairy.add(crystal);let orb=new THREE.Mesh(new THREE.SphereGeometry(.18,10,10),M.gold);orb.position.set(x,2.8+Math.random()*2,z);fairy.add(orb)}
+for(let i=0;i<8;i++){let f=new THREE.Mesh(new THREE.SphereGeometry(.4,12,12),M.pink);f.position.set(-38+Math.random()*14,1,-33+Math.random()*10);fairy.add(f)}
+label('TIÊN CẢNH',-31,-18,'#ffe4ff');
+// plaza fountain
+const fountain=group(scene,0,0,0);let base=new THREE.Mesh(new THREE.CylinderGeometry(3,3.4,.5,12),M.stone);base.position.y=.25;fountain.add(base);let pool=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,.2,12),M.water);pool.position.y=.55;fountain.add(pool);box(fountain,0,1.2,0,.45,1.4,.45,M.stone);let orb=new THREE.Mesh(new THREE.SphereGeometry(.5,16,16),M.gold);orb.position.y=2.1;fountain.add(orb);label('QUẢNG TRƯỜNG',0,5,'#fff2c9');
+// block character
+const player=group(scene,0,0,10);
+const body=box(player,0,1.15,0,.85,1.05,.5,M.blue);const head=box(player,0,2,0,.75,.7,.65,mat(0xffd1a8));box(player,0,2.1,.34,.42,.12,.05,M.dark);box(player,-.22,2.2,.35,.08,.08,.05,M.white);box(player,.22,2.2,.35,.08,.08,.05,M.white);box(player,-.23,.4,0,.28,.8,.3,M.dark);box(player,.23,.4,0,.28,.8,.3,M.dark);box(player,-.57,1.2,0,.25,.8,.3,M.blue);box(player,.57,1.2,0,.25,.8,.3,M.blue);
+// wizard hat
+cone(player,0,2.65,0,.58,.9,M.purple,5);let brim=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.12,12),M.purple);brim.position.y=2.35;player.add(brim);let star=new THREE.Mesh(new THREE.OctahedronGeometry(.15),M.gold);star.position.set(.25,2.72,.35);player.add(star);
+let spellGroup=group(player,0,2.5,0);for(let i=0;i<9;i++){let p=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),i%2?M.pink:M.gold);p.position.set(Math.cos(i*2.4)*(.6+Math.random()*.7),Math.sin(i*2.1)*.6,Math.sin(i*1.8)*(.6+Math.random()*.7));spellGroup.add(p)}spellGroup.visible=false;
+const places={
+ castle:{x:0,z:-31,name:'Lâu đài phù thủy',desc:'Tòa lâu đài bí ẩn, nơi phù thủy nghiên cứu phép thuật.'},
+ fairy:{x:-31,z:-28,name:'Tiên cảnh',desc:'Khu rừng pha lê, hồ nước xanh và những đốm sáng ma thuật.'},
+ homes:{x:-32,z:26,name:'Khu dân cư — 10 ngôi nhà',desc:'Khu dân cư ấm cúng với 10 ngôi nhà nhiều màu sắc.'},
+ town:{x:19,z:0,name:'Thị trấn',desc:'Có quán ăn, cửa hàng tiện lợi, đồn cảnh sát và cửa hàng hoa.'},
+ plaza:{x:0,z:0,name:'Quảng trường Làng',desc:'Quảng trường trung tâm với đài phun nước phép thuật.'}
+};
+let current='plaza',camMode=0,spellOn=false,jumpT=0;
+const target=new THREE.Vector3(0,0,10);
+function notify(t){let el=document.getElementById('toast');el.textContent=t;el.style.display='block';clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.style.display='none',1600)}
+function goTo(k){let p=places[k];if(!p)return;target.set(p.x,0,p.z);player.position.x=p.x;player.position.z=p.z;current=k;document.getElementById('place').textContent=p.name;document.getElementById('desc').textContent=p.desc;notify('Đã đến: '+p.name)}
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.go)));
+document.getElementById('home').addEventListener('click',()=>goTo('plaza'));
+document.getElementById('cam').addEventListener('click',()=>{camMode=(camMode+1)%3;notify(['Camera theo sau','Góc nhìn cao','Góc quay điện ảnh'][camMode])});
+document.getElementById('spell').addEventListener('click',()=>{spellOn=!spellOn;spellGroup.visible=spellOn;notify(spellOn?'Phép thuật đã kích hoạt ✨':'Đã tắt phép thuật')});
+document.getElementById('dance').addEventListener('click',()=>{jumpT=1;notify('Phù thủy tí hon đang nhảy!')});
+// directional controls support touch and hold
+let keys={up:false,down:false,left:false,right:false};
+for(let k of Object.keys(keys)){let el=document.getElementById(k);let start=e=>{e.preventDefault();keys[k]=true};let end=e=>{e.preventDefault();keys[k]=false};el.addEventListener('pointerdown',start);['pointerup','pointercancel','pointerleave'].forEach(ev=>el.addEventListener(ev,end))}
+const map=document.getElementById('map'),ctx=map.getContext('2d');
+function drawMap(){ctx.clearRect(0,0,228,228);ctx.fillStyle='#8ed48c';ctx.fillRect(0,0,228,228);ctx.fillStyle='#c9b28e';ctx.fillRect(105,0,18,228);ctx.fillRect(0,105,228,18);ctx.fillRect(44,0,18,228);ctx.fillRect(166,0,18,228);ctx.fillRect(25,52,178,17);ctx.fillRect(25,158,178,17);ctx.fillStyle='#48c7e7';ctx.fillRect(10,25,48,37);ctx.fillStyle='#a78be8';ctx.fillRect(95,8,38,30);ctx.fillStyle='#f4d66f';ctx.fillRect(22,144,48,66);ctx.fillStyle='#e98cc9';ctx.fillRect(143,78,60,70);ctx.fillStyle='#ffffff';ctx.font='bold 10px system-ui';ctx.fillText('TIÊN',10,20);ctx.fillText('LÂU ĐÀI',144,19);ctx.fillText('NHÀ',24,139);ctx.fillText('THỊ TRẤN',145,72);let px=114+(player.position.x/100)*180,pz=114+(player.position.z/100)*180;ctx.fillStyle='#ffe34f';ctx.beginPath();ctx.arc(Math.max(5,Math.min(223,px)),Math.max(5,Math.min(223,pz)),6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()}
+function updatePlace(){let x=player.position.x,z=player.position.z;let nearest='plaza',dist=999;for(let [k,p] of Object.entries(places)){let d=Math.hypot(x-p.x,z-p.z);if(d<dist){dist=d;nearest=k}}if(nearest!==current&&dist<10){current=nearest;document.getElementById('place').textContent=places[nearest].name;document.getElementById('desc').textContent=places[nearest].desc}}
+let last=0;
+function animate(t){requestAnimationFrame(animate);let dt=Math.min((t-last)/1000||0,.04);last=t;
+ let dx=(keys.right?1:0)-(keys.left?1:0),dz=(keys.down?1:0)-(keys.up?1:0);if(dx||dz){let len=Math.hypot(dx,dz);dx/=len;dz/=len;player.position.x+=dx*8*dt;player.position.z+=dz*8*dt;player.position.x=Math.max(-47,Math.min(47,player.position.x));player.position.z=Math.max(-47,Math.min(47,player.position.z));player.rotation.y=Math.atan2(dx,dz)}
+ if(jumpT>0){jumpT-=dt*1.6;player.position.y=Math.max(0,Math.sin((1-jumpT)*Math.PI*2)*.9)}else player.position.y=0;
+ spellGroup.rotation.y+=dt*2;
+ let desired;
+ if(camMode===0)desired=new THREE.Vector3(player.position.x+12,player.position.y+13,player.position.z+16);
+ else if(camMode===1)desired=new THREE.Vector3(player.position.x+1,player.position.y+29,player.position.z+24);
+ else desired=new THREE.Vector3(player.position.x+18,player.position.y+8,player.position.z+8);
+ camera.position.lerp(desired,Math.min(1,dt*2.5));camera.lookAt(player.position.x,1,player.position.z);
+ updatePlace();drawMap();renderer.render(scene,camera)}
+requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body></html>
